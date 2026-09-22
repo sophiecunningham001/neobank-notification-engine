@@ -1,10 +1,17 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 
 app = Flask(__name__)
 
 
 @app.get("/")
 def index():
+    """Render the main HTML page with Speed Insights enabled"""
+    return render_template("index.html")
+
+
+@app.get("/api")
+def api_info():
+    """API information endpoint"""
     return jsonify(
         {
             "service": "neobank-notification-engine",
@@ -16,6 +23,7 @@ def index():
 
 @app.get("/health")
 def health():
+    """Health check endpoint"""
     return jsonify({"status": "healthy"})
 
 
