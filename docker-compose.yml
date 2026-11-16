@@ -1,0 +1,35 @@
+version: "3.9"
+
+# Production-style split: app container + separate PostgreSQL container.
+# For a single all-in-one container (embedded Postgres), just: docker build .
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bank}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bank}
+      POSTGRES_DB: ${POSTGRES_DB:-fictional_bank}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bank -d fictional_bank"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://bank:bank@db:5432/fictional_bank
+      JWT_SECRET: change-me-in-production
+      EXPOSE_TOTP: "1"
+      SKIP_EMBEDDED_PG: "1"
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+
+volumes:
+  db_data:
