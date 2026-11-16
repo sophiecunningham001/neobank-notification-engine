@@ -65,6 +65,10 @@ function App() {
 
   return (
     <div className="app-shell">
+      <div className="demo-banner" role="status" aria-live="polite">
+        <span className="demo-pill">DEMO MODE</span>
+        <span>Fictional banking prototype — no real accounts, funds, or payment rails are connected.</span>
+      </div>
       {mobileNav && <button className="scrim" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
       <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
         <a className="brand" href="#home" onClick={(event) => { event.preventDefault(); changePage('Overview'); }}>
