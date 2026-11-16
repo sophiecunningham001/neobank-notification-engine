@@ -3,50 +3,66 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-class RegisterIn(BaseModel):
-    email: EmailStr
-    full_name: str = Field(min_length=2, max_length=160)
-    password: str = Field(min_length=12, max_length=128)
-
-
-class LoginIn(BaseModel):
+class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
 
-class TokenOut(BaseModel):
+class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
 
-class CustomerOut(BaseModel):
+class UserResponse(BaseModel):
     id: str
-    email: EmailStr
+    email: str
     full_name: str
-    kyc_status: str
     model_config = ConfigDict(from_attributes=True)
 
 
-class AccountOut(BaseModel):
+class AccountResponse(BaseModel):
     id: str
     account_number: str
+    name: str
     account_type: str
-    currency: str
+    balance_cents: int
     status: str
     model_config = ConfigDict(from_attributes=True)
 
 
-class TransferIn(BaseModel):
-    sender_account_id: str
-    recipient_account_id: str
-    amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
-    currency: str = Field(default="USD", pattern="^[A-Z]{3}$")
+class CardResponse(BaseModel):
+    id: str
+    last4: str
+    brand: str
+    pan: str
+    status: str
+    model_config = ConfigDict(from_attributes=True)
 
 
-class TransferOut(BaseModel):
+class PaymentRequest(BaseModel):
+    pan: str
+    amount_cents: int = Field(gt=0)
+    merchant: str
+    idempotency_key: str = Field(min_length=3, max_length=128)
+
+
+class PaymentResponse(BaseModel):
     id: str
     status: str
-    amount: Decimal
-    currency: str
-    journal_transaction_id: str
+    amount_cents: int
+    merchant: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TransferRequest(BaseModel):
+    from_account_id: str
+    to_account_id: str
+    amount_cents: int = Field(gt=0)
+    idempotency_key: str = Field(min_length=3, max_length=128)
+
+
+class TransferResponse(BaseModel):
+    id: str
+    status: str
+    amount_cents: int
     model_config = ConfigDict(from_attributes=True)

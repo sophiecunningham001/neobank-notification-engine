@@ -2,23 +2,23 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import HTTPException, status
-from pwdlib import PasswordHash
+from passlib.context import CryptContext
 
 from app.config import settings
 
-password_hash = PasswordHash.recommended()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
 
 
 def hash_password(password: str) -> str:
-    return password_hash.hash(password)
+    return pwd_context.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return password_hash.verify(password, hashed)
+    return pwd_context.verify(password, hashed)
 
 
-def create_access_token(subject: str) -> str:
+def create_token(subject: str) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
@@ -29,7 +29,7 @@ def create_access_token(subject: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str) -> str:
+def decode_token(token: str) -> str:
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[ALGORITHM], issuer=settings.jwt_issuer)
         return payload["sub"]

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -11,93 +11,91 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
-class Customer(Base):
-    __tablename__ = "customers"
-
+class User(Base):
+    __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
-    full_name: Mapped[str] = mapped_column(String(160))
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(20), default="customer")
-    kyc_status: Mapped[str] = mapped_column(String(20), default="not_started")
+    full_name: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(30), default="customer")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    accounts = relationship("BankAccount", back_populates="owner")
+
+    accounts = relationship("Account", back_populates="user")
 
 
-class BankAccount(Base):
-    __tablename__ = "bank_accounts"
-
+class Account(Base):
+    __tablename__ = "accounts"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    owner_id: Mapped[str] = mapped_column(ForeignKey("customers.id"), index=True)
-    account_number: Mapped[str] = mapped_column(String(20), unique=True, index=True)
-    account_type: Mapped[str] = mapped_column(String(20), default="checking")
-    currency: Mapped[str] = mapped_column(String(3), default="USD")
-    status: Mapped[str] = mapped_column(String(20), default="sandbox")
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    account_number: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    account_type: Mapped[str] = mapped_column(String(50), default="checking")
+    balance_cents: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    owner = relationship("Customer", back_populates="accounts")
-    ledger_account = relationship("LedgerAccount", back_populates="bank_account", uselist=False)
+
+    user = relationship("User", back_populates="accounts")
 
 
-class LedgerAccount(Base):
-    __tablename__ = "ledger_accounts"
-
+class Card(Base):
+    __tablename__ = "cards"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    bank_account_id: Mapped[str] = mapped_column(ForeignKey("bank_accounts.id"), unique=True)
-    account_kind: Mapped[str] = mapped_column(String(30), default="customer_deposit_liability")
-    currency: Mapped[str] = mapped_column(String(3), default="USD")
-    bank_account = relationship("BankAccount", back_populates="ledger_account")
-
-
-class JournalTransaction(Base):
-    __tablename__ = "journal_transactions"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    transaction_type: Mapped[str] = mapped_column(String(40))
-    status: Mapped[str] = mapped_column(String(20), default="posted")
-    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
-    description: Mapped[str] = mapped_column(String(255), default="")
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    last4: Mapped[str] = mapped_column(String(4))
+    brand: Mapped[str] = mapped_column(String(20), default="Visa")
+    pan: Mapped[str] = mapped_column(String(32), unique=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    entries = relationship("JournalEntry", back_populates="transaction", cascade="all, delete-orphan")
 
 
-class JournalEntry(Base):
-    __tablename__ = "journal_entries"
-    __table_args__ = (
-        CheckConstraint("debit >= 0 AND credit >= 0", name="ck_entry_nonnegative"),
-        CheckConstraint("(debit > 0 AND credit = 0) OR (credit > 0 AND debit = 0)", name="ck_entry_one_side"),
-    )
-
+class PaymentAuthorization(Base):
+    __tablename__ = "payment_authorizations"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    transaction_id: Mapped[str] = mapped_column(ForeignKey("journal_transactions.id"), index=True)
-    ledger_account_id: Mapped[str] = mapped_column(ForeignKey("ledger_accounts.id"), index=True)
-    debit: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
-    credit: Mapped[float] = mapped_column(Numeric(18, 2), default=0)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    card_pan: Mapped[str] = mapped_column(String(32))
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    merchant: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(30))
+    idempotency_key: Mapped[str] = mapped_column(String(120), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    transaction = relationship("JournalTransaction", back_populates="entries")
+
+
+class Transfer(Base):
+    __tablename__ = "transfers"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    from_account_id: Mapped[str] = mapped_column(String(36))
+    to_account_id: Mapped[str] = mapped_column(String(36))
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(30), default="posted")
+    idempotency_key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LedgerEntry(Base):
+    __tablename__ = "ledger_entries"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    account_id: Mapped[str] = mapped_column(String(36), index=True)
+    entry_type: Mapped[str] = mapped_column(String(30))
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FraudAlert(Base):
+    __tablename__ = "fraud_alerts"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    level: Mapped[str] = mapped_column(String(20), default="low")
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
-
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     event_type: Mapped[str] = mapped_column(String(80))
-    target_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    details: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-
-class TransferRequest(Base):
-    __tablename__ = "transfer_requests"
-    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_transfer_idempotency"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    idempotency_key: Mapped[str] = mapped_column(String(128))
-    sender_account_id: Mapped[str] = mapped_column(String(36))
-    recipient_account_id: Mapped[str] = mapped_column(String(36))
-    amount: Mapped[float] = mapped_column(Numeric(18, 2))
-    currency: Mapped[str] = mapped_column(String(3), default="USD")
-    status: Mapped[str] = mapped_column(String(20), default="posted")
-    journal_transaction_id: Mapped[str] = mapped_column(String(36))
+    details: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
